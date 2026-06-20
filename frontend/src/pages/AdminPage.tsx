@@ -22,6 +22,15 @@ interface PickupRecord {
   picked_up_by_name: string | null;
 }
 
+interface Announcement {
+  id: number;
+  title: string;
+  content: string;
+  created_by: number;
+  created_at: string;
+  created_by_name: string;
+}
+
 function todayStr(): string {
   const d = new Date();
   return d.toISOString().substring(0, 10);
@@ -38,6 +47,13 @@ export default function AdminPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const limit = 15;
+
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [announcementTitle, setAnnouncementTitle] = useState('');
+  const [announcementContent, setAnnouncementContent] = useState('');
+  const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
+  const [submittingAnnouncement, setSubmittingAnnouncement] = useState(false);
+  const [announcementResult, setAnnouncementResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -67,10 +83,19 @@ export default function AdminPage() {
     }
   }, [startDate, endDate, page]);
 
+  const loadAnnouncements = useCallback(async () => {
+    try {
+      const data = await api.getAnnouncements(1, 10);
+      setAnnouncements(data.announcements || []);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await Promise.all([loadDashboard(), loadPeakHours(chartDate), loadRecords()]);
+      await Promise.all([loadDashboard(), loadPeakHours(chartDate), loadRecords(), loadAnnouncements()]);
       setLoading(false);
     };
     init();
@@ -83,6 +108,42 @@ export default function AdminPage() {
   useEffect(() => {
     loadRecords();
   }, [loadRecords]);
+
+  const handleCreateAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!announcementTitle.trim() || !announcementContent.trim()) {
+      setAnnouncementResult({ type: 'error', message: '请填写公告标题和内容' });
+      return;
+    }
+    setSubmittingAnnouncement(true);
+    setAnnouncementResult(null);
+    try {
+      const data = await api.createAnnouncement({
+        title: announcementTitle.trim(),
+        content: announcementContent.trim(),
+      });
+      setAnnouncementResult({ type: 'success', message: data.message });
+      setAnnouncementTitle('');
+      setAnnouncementContent('');
+      setShowAnnouncementForm(false);
+      loadAnnouncements();
+    } catch (err: any) {
+      setAnnouncementResult({ type: 'error', message: err.message });
+    } finally {
+      setSubmittingAnnouncement(false);
+    }
+  };
+
+  const handleDeleteAnnouncement = async (id: number) => {
+    if (!confirm('确定要删除这条公告吗？')) return;
+    try {
+      await api.deleteAnnouncement(id);
+      setAnnouncements(prev => prev.filter(a => a.id !== id));
+    } catch (err: any) {
+      console.error(err);
+      alert('删除失败: ' + err.message);
+    }
+  };
 
   const maxHour = Math.max(...hours, 1);
   const totalPages = Math.ceil(totalRecords / limit);
@@ -116,6 +177,102 @@ export default function AdminPage() {
           <div className="stat-label">超时未取(&gt;3天)</div>
           <div className="stat-value">{dashboard?.overdue ?? 0}</div>
           <div className="stat-icon">{'\u{26A0}'}</div>
+        </div>
+      </div>
+
+      {/* Announcements */}
+      <div className="card mb-24">
+        <div className="card-header">
+          <div className="card-title">公告管理</div>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => { setShowAnnouncementForm(!showAnnouncementForm); setAnnouncementResult(null); }}
+          >
+            {showAnnouncementForm ? '取消' : '发布公告'}
+          </button>
+        </div>
+        {showAnnouncementForm && (
+          <div className="card-body">
+            <form onSubmit={handleCreateAnnouncement}>
+              <div className="form-group">
+                <label className="form-label">公告标题</label>
+                <input
+                  className="form-input"
+                  placeholder="请输入公告标题"
+                  value={announcementTitle}
+                  onChange={e => setAnnouncementTitle(e.target.value)}
+                  maxLength={100}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">公告内容</label>
+                <textarea
+                  className="form-input"
+                  placeholder="请输入公告内容"
+                  value={announcementContent}
+                  onChange={e => setAnnouncementContent(e.target.value)}
+                  rows={4}
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+              <button
+                className="btn btn-primary"
+                type="submit"
+                disabled={submittingAnnouncement}
+                style={{ width: '100%' }}
+              >
+                {submittingAnnouncement ? '发布中...' : '发布公告'}
+              </button>
+              {announcementResult && (
+                <div
+                  className={`alert ${announcementResult.type === 'success' ? 'alert-success' : 'alert-error'}`}
+                  style={{ marginTop: 16 }}
+                >
+                  {announcementResult.message}
+                </div>
+              )}
+            </form>
+          </div>
+        )}
+        <div className="card-body" style={{ paddingTop: showAnnouncementForm ? 0 : undefined }}>
+          {announcements.length === 0 ? (
+            <div className="empty-state">
+              <p>暂无公告</p>
+              <p className="sub">发布公告后所有用户都会收到通知</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {announcements.map(a => (
+                <div
+                  key={a.id}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 8,
+                    border: '1px solid var(--gray-200)',
+                    background: 'var(--gray-50)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <div>
+                      <strong style={{ fontSize: 15 }}>{a.title}</strong>
+                      <span style={{ fontSize: 12, color: 'var(--gray-400)', marginLeft: 12 }}>
+                        {a.created_at} · {a.created_by_name}
+                      </span>
+                    </div>
+                    <button
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => handleDeleteAnnouncement(a.id)}
+                    >
+                      删除
+                    </button>
+                  </div>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--gray-600)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                    {a.content}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

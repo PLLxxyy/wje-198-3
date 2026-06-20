@@ -25,7 +25,23 @@ router.post('/', roleMiddleware('courier', 'admin'), (req: Request, res: Respons
       'INSERT INTO packages (tracking_no, recipient_phone, recipient_name, pickup_code, entered_by) VALUES (?, ?, ?, ?, ?)'
     ).run(tracking_no, recipient_phone, recipient_name, pickup_code, req.user!.userId);
 
-    const pkg = db.prepare('SELECT * FROM packages WHERE id = ?').get(result.lastInsertRowid);
+    const pkg = db.prepare('SELECT * FROM packages WHERE id = ?').get(result.lastInsertRowid) as any;
+
+    const recipientUser = db.prepare(
+      'SELECT id FROM users WHERE phone = ? AND role = ?'
+    ).get(recipient_phone, 'recipient') as any;
+    if (recipientUser) {
+      db.prepare(
+        `INSERT INTO notifications (user_id, type, title, content, related_id)
+         VALUES (?, 'package', ?, ?, ?)`
+      ).run(
+        recipientUser.id,
+        '快递已入库',
+        `您的快递 ${tracking_no} 已入库，取件码：${pickup_code}，请及时取件。`,
+        pkg.id
+      );
+    }
+
     res.status(201).json({ package: pkg, message: `入库成功，取件码: ${pickup_code}` });
   } catch (err: any) {
     res.status(500).json({ error: '入库失败: ' + err.message });

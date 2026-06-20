@@ -61,4 +61,26 @@ export const api = {
   },
 
   getOverdue: () => request('/stats/overdue'),
+
+  // Notifications
+  getNotifications: (page = 1, limit = 20) =>
+    request(`/notifications?page=${page}&limit=${limit}`),
+
+  getUnreadCount: () => request('/notifications/unread-count'),
+
+  markAsRead: (id: number) =>
+    request(`/notifications/read/${id}`, { method: 'POST' }),
+
+  markAllAsRead: () =>
+    request('/notifications/read-all', { method: 'POST' }),
+
+  // Announcements (admin)
+  getAnnouncements: (page = 1, limit = 20) =>
+    request(`/notifications/announcements?page=${page}&limit=${limit}`),
+
+  createAnnouncement: (data: { title: string; content: string }) =>
+    request('/notifications/announcements', { method: 'POST', body: JSON.stringify(data) }),
+
+  deleteAnnouncement: (id: number) =>
+    request(`/notifications/announcements/${id}`, { method: 'DELETE' }),
 };

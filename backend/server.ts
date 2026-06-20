@@ -5,6 +5,7 @@ import { authMiddleware } from './auth.js';
 import authRoutes from './routes/auth.js';
 import packageRoutes from './routes/packages.js';
 import statsRoutes from './routes/stats.js';
+import notificationRoutes from './routes/notifications.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3298;
@@ -17,6 +18,7 @@ initDB();
 app.use('/api/auth', authRoutes);
 app.use('/api/packages', authMiddleware, packageRoutes);
 app.use('/api/stats', authMiddleware, statsRoutes);
+app.use('/api/notifications', authMiddleware, notificationRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', message: '快递驿站管理系统运行中' });

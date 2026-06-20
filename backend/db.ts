@@ -43,6 +43,33 @@ export function initDB() {
     CREATE INDEX IF NOT EXISTS idx_packages_status ON packages(status);
     CREATE INDEX IF NOT EXISTS idx_packages_tracking_no ON packages(tracking_no);
     CREATE INDEX IF NOT EXISTS idx_packages_entered_at ON packages(entered_at);
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('package','announcement')),
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      is_read INTEGER NOT NULL DEFAULT 0,
+      related_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+    CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+
+    CREATE TABLE IF NOT EXISTS announcements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_by INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_announcements_created_at ON announcements(created_at);
   `);
 }
 

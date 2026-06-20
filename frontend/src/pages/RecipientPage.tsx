@@ -13,6 +13,15 @@ interface Package {
   entered_by_name?: string;
 }
 
+interface Notification {
+  id: number;
+  type: string;
+  title: string;
+  content: string;
+  is_read: number;
+  created_at: string;
+}
+
 function daysSince(dateStr: string): number {
   const entered = new Date(dateStr).getTime();
   const now = Date.now();
@@ -26,9 +35,12 @@ export default function RecipientPage() {
   const [pickupCode, setPickupCode] = useState('');
   const [result, setResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     loadPackages();
+    loadNotifications();
   }, []);
 
   const loadPackages = async () => {
@@ -41,6 +53,33 @@ export default function RecipientPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadNotifications = async () => {
+    try {
+      const data = await api.getNotifications(1, 10);
+      setNotifications(data.notifications || []);
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
+
+  const unreadCount = notifications.filter(n => n.is_read === 0).length;
+
+  const handleMarkAsRead = async (id: number) => {
+    try {
+      await api.markAsRead(id);
+      setNotifications(prev =>
+        prev.map(n => (n.id === id ? { ...n, is_read: 1 } : n))
+      );
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
+
+  const typeIcon: Record<string, string> = {
+    package: '\u{1F4E6}',
+    announcement: '\u{1F4E2}',
   };
 
   const handlePickup = async (e: FormEvent) => {
@@ -70,6 +109,73 @@ export default function RecipientPage() {
   return (
     <>
       <h1 className="page-title">我的快递</h1>
+
+      {/* Notifications */}
+      <div className="card mb-24">
+        <div className="card-header">
+          <div className="card-title">
+            消息通知
+            {unreadCount > 0 && (
+              <span className="badge badge-pending" style={{ marginLeft: 8 }}>{unreadCount} 条未读</span>
+            )}
+          </div>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => setShowNotifications(!showNotifications)}
+          >
+            {showNotifications ? '收起' : '展开'}
+          </button>
+        </div>
+        {showNotifications && (
+          <div className="card-body">
+            {notifications.length === 0 ? (
+              <div className="empty-state">
+                <p>暂无通知</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {notifications.map(n => (
+                  <div
+                    key={n.id}
+                    className={`notification-card ${n.is_read === 0 ? 'unread' : ''}`}
+                    onClick={() => n.is_read === 0 && handleMarkAsRead(n.id)}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: 8,
+                      border: '1px solid var(--gray-200)',
+                      background: n.is_read === 0 ? 'var(--primary-light)' : 'var(--white)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ fontSize: 24 }}>{typeIcon[n.type] || '\u{1F4AC}'}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <strong style={{ fontSize: 14 }}>{n.title}</strong>
+                        <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>{n.created_at}</span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 13, color: 'var(--gray-600)', lineHeight: 1.5 }}>
+                        {n.content}
+                      </p>
+                    </div>
+                    {n.is_read === 0 && (
+                      <div style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: 'var(--danger)',
+                        marginTop: 6,
+                        flexShrink: 0,
+                      }} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Pickup form */}
       <div className="card mb-24">
